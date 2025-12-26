@@ -52,10 +52,11 @@ node cheat-bot.js
 ```
 
 Automatically:
+- Fetches your current score from the site
 - Gets ticket via referral
 - Starts game
 - Submits fake score (7M-9M per game)
-- Repeats until target score reached
+- Repeats until your total score on the site reaches target
 
 ## Configuration
 
@@ -64,13 +65,15 @@ Edit `cheat-bot.js` to customize:
 ```javascript
 const CONFIG = {
   token: 'YOUR_TOKEN_HERE',
-  targetScore: 50000000,        // Stop when reached
+  targetScore: 50000000,        // Stop when your site score reaches this
   scoreMin: 7000000,            // Min score per game
   scoreMax: 9000000,            // Max score per game
   delayMin: 70,                 // Min delay between games (seconds)
   delayMax: 120,                // Max delay between games
 };
 ```
+
+> **Note:** `targetScore` is your total score on the website, not the sum of scores from this session. The bot fetches your actual score from the API after each game.
 
 ## Disclaimer
 
