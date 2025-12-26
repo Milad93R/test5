@@ -1,0 +1,12 @@
+{
+  "name": "game-bot",
+  "version": "1.0.0",
+  "description": "Game automation bot",
+  "main": "cheat-bot.js",
+  "scripts": {
+    "start": "node cheat-bot.js"
+  },
+  "dependencies": {
+    "puppeteer": "^23.0.0"
+  }
+}
