@@ -2,8 +2,9 @@ const puppeteer = require('puppeteer');
 
 // ============ CONFIGURATION ============
 const CONFIG = {
-  token: '484638|uJlGdPeHUN4AO8lUwmKswtgCwGZZtiWZe5NA1zys2b600eb8',
-  targetScore: 50000000,        // Stop when total score reaches this
+  // token: '484638|uJlGdPeHUN4AO8lUwmKswtgCwGZZtiWZe5NA1zys2b600eb8',
+  token: '481462|R0AUevlJJioDog1Ky2qLknA5ysddOu0l2P90Muj9b88d1a3d',
+  targetScore: 550000000,        // Stop when total score reaches this
   delayMin: 70,                // Minimum delay between runs (seconds)
   delayMax: 120,                // Maximum delay between runs (seconds)
   scoreMin: 7000000,            // Minimum fake score per game
@@ -40,6 +41,22 @@ async function doReferral(page, token) {
       })
     });
     return response.json();
+  }, token);
+  return result;
+}
+
+// Get actual user score from API
+async function getUserScore(page, token) {
+  const result = await page.evaluate(async (tkn) => {
+    const response = await fetch('https://landing.emofid.com/api-service/anniversary40/user/', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${tkn}`
+      },
+      credentials: 'include'
+    });
+    const data = await response.json();
+    return parseFloat(data.data.scores[0].points);
   }, token);
   return result;
 }
@@ -142,6 +159,10 @@ async function runBot() {
   await page.reload({ waitUntil: 'networkidle2' });
   console.log('✅ Authentication set!\n');
 
+  // Get initial score from API
+  totalScore = await getUserScore(page, token);
+  console.log(`📊 Current score on site: ${totalScore.toLocaleString()}\n`);
+
   while (totalScore < targetScore) {
     gameCount++;
     const remaining = targetScore - totalScore;
@@ -212,9 +233,10 @@ async function runBot() {
       const result = await gameFrame.evaluate(exploitScript(score, duration, token));
 
       if (result && result.success) {
-        totalScore += score;
         console.log(`✅ Success: +${score.toLocaleString()} points`);
-        console.log(`📈 Total: ${totalScore.toLocaleString()} / ${targetScore.toLocaleString()}`);
+        // Get actual score from API
+        totalScore = await getUserScore(page, token);
+        console.log(`📈 Total (from site): ${totalScore.toLocaleString()} / ${targetScore.toLocaleString()}`);
       } else {
         console.log('❌ Failed:', result);
       }
@@ -240,9 +262,12 @@ async function runBot() {
     }
   }
 
+  // Get final score from API
+  const finalScore = await getUserScore(page, token);
+
   console.log('\n🏁 Bot finished!');
   console.log(`📊 Total games: ${gameCount}`);
-  console.log(`📈 Total score: ${totalScore.toLocaleString()}`);
+  console.log(`📈 Final score (from site): ${finalScore.toLocaleString()}`);
   await browser.close();
 }
 
