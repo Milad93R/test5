@@ -3,14 +3,15 @@ const puppeteer = require('puppeteer');
 // ============ CONFIGURATION ============
 const CONFIG = {
   token: '505476|gJ2rpon2kgvDABZP86I9E2eRHd1mSh0BUAPBXYBie6e9ae53',
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36',
   targetScore: 46000000,        // Stop when total score reaches this
   delayMin: 10,                // Minimum delay between runs (seconds)
-  delayMax: 30,                // Maximum delay between runs (seconds)
-  scoreMin: 10000,            // Minimum fake score per game
-  scoreMax: 30000,           // Maximum fake score per game
+  delayMax: 20,                // Maximum delay between runs (seconds)
+  scoreMin: 2000000,            // Minimum fake score per game
+  scoreMax: 8000000,           // Maximum fake score per game
   scoreStep: 500,              // Score must be multiple of this
-  durationMin: 30,            // Min game duration to report (seconds)
-  durationMax: 60,           // Max game duration to report (seconds)
+  durationMin: 300,            // Min game duration to report (seconds)
+  durationMax: 600,            // Max game duration to report (seconds)
   headless: false,             // Set true to run without browser window
 };
 
@@ -136,6 +137,10 @@ async function runBot() {
 
   const page = await browser.newPage();
 
+  // Set User-Agent
+  await page.setUserAgent(CONFIG.userAgent);
+  console.log(`✅ User-Agent: ${CONFIG.userAgent.substring(0, 50)}...`);
+
   // First navigate to set up the domain
   console.log('🔐 Setting up authentication...');
   await page.goto('https://landing.emofid.com/anniversary40/', {
@@ -177,12 +182,15 @@ async function runBot() {
     console.log(`\n========== GAME ${gameCount} | Total: ${totalScore.toLocaleString()} / ${targetScore.toLocaleString()} (${remaining.toLocaleString()} remaining) ==========`);
 
     try {
-      // Generate random score and target wait time
+      // Generate random score
       const score = randomInt(CONFIG.scoreMin, CONFIG.scoreMax, CONFIG.scoreStep);
-      const targetDuration = randomInt(CONFIG.durationMin, CONFIG.durationMax);
+
+      // Map duration proportionally: scoreMin→durationMin, scoreMax→durationMax
+      const scoreRatio = (score - CONFIG.scoreMin) / (CONFIG.scoreMax - CONFIG.scoreMin);
+      const targetDuration = Math.round(CONFIG.durationMin + scoreRatio * (CONFIG.durationMax - CONFIG.durationMin));
 
       console.log(`📊 Target Score: ${score.toLocaleString()}`);
-      console.log(`⏱️  Target Duration: ${targetDuration}s`);
+      console.log(`⏱️  Target Duration: ${targetDuration}s (mapped from score)`);
 
       // Do 1 referral to get ticket
       console.log('🎫 Getting ticket via referral...');
