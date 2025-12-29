@@ -169,7 +169,7 @@ async function runBot() {
   const browser = await puppeteer.launch({
     headless: CONFIG.headless,
     defaultViewport: null,
-    args: ['--start-maximized']
+    args: ['--start-maximized', '--no-sandbox', '--disable-setuid-sandbox']
   });
 
   const page = await browser.newPage();
