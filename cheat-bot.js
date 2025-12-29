@@ -35,7 +35,7 @@ const SCORE_STEP = 500; // Each item gives 500 points
 const CONFIG = {
   token: process.argv[2] || '531044|dcDVMJQaz23Q707h5UKYE8vQYzZxiFuBCSMROo8S7d05bcee',
   userAgent: resolveUserAgent(process.argv[3] || 'random'),
-  targetScore: 46000000,        // Stop when total score reaches this (must be multiple of SCORE_STEP)
+  targetScore: 300000000,     // Stop when total score reaches this (must be multiple of SCORE_STEP)
   delayMin: 3,                  // Minimum delay between runs (seconds)
   delayMax: 5,                  // Maximum delay between runs (seconds)
   rateMin: 800,                 // Minimum score rate (points per second)
@@ -250,40 +250,49 @@ async function runBot() {
       console.log('🎮 Clicking start game button...');
       await page.waitForSelector('button[aria-label*="شروع بازی شاتل فضایی"]', { timeout: 30000 });
 
-      // Set up listener for can-start API before clicking
-      const canStartPromise = page.waitForResponse(
-        response => response.url().includes('/api-service/anniversary40/can-start') && response.status() === 200,
-        { timeout: 60000 }
-      ).catch(() => null);
-
       await page.click('button[aria-label*="شروع بازی شاتل فضایی"]');
 
       // Wait for iframe to load
       console.log('⏳ Waiting for game iframe to load...');
       await page.waitForSelector('iframe[src*="games/rocket"]', { timeout: 15000 });
 
-      // Wait for can-start API to complete
-      console.log('⏳ Waiting for game to initialize (can-start API)...');
-      const canStartResult = await canStartPromise;
-
-      // Record the ACTUAL start time (this is crucial for the exploit)
-      const gameStartTime = Date.now();
-
-      if (canStartResult) {
-        console.log('✅ Game initialized!');
-      } else {
-        console.log('⚠️  can-start timeout, continuing anyway...');
-      }
-
-      await sleep(2000); // Wait for game to be ready
-
-      // Get the game iframe
+      // Get the game iframe and wait for it to be ready
+      await sleep(2000);
       const frames = page.frames();
       const gameFrame = frames.find(f => f.url().includes('games/rocket'));
 
       if (!gameFrame) {
         console.log('❌ Game iframe not found!');
         continue;
+      }
+
+      // Manually call can-start API from iframe context to ensure game session is registered
+      console.log('⏳ Calling can-start API manually...');
+      const canStartResult = await gameFrame.evaluate(async (tkn) => {
+        try {
+          const response = await fetch('https://landing.emofid.com/api-service/anniversary40/can-start?game=rocket', {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${tkn}`
+            },
+            credentials: 'include'
+          });
+          const data = await response.json();
+          return { success: true, data };
+        } catch (e) {
+          return { success: false, error: e.message };
+        }
+      }, token);
+
+      console.log('   can-start result:', JSON.stringify(canStartResult));
+
+      // Record the ACTUAL start time (this is crucial for the exploit)
+      const gameStartTime = Date.now();
+
+      if (canStartResult && canStartResult.success) {
+        console.log('✅ Game initialized!');
+      } else {
+        console.log('⚠️  can-start failed:', canStartResult);
       }
 
       // Wait for the target duration (server validates actual elapsed time)
