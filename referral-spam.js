@@ -12,10 +12,10 @@ const { HttpsProxyAgent } = require('https-proxy-agent');
 
 const CONFIG = {
   token: process.argv[2] || '545029|7AaGWjjzE815naLIwKMazTIggTFTohUTr2KAIvWWc51ed48c',
-  count: parseInt(process.argv[3]) || 9257,
+  count: parseInt(process.argv[3]) || 5257,
   proxyUrl: process.argv[4] || null,
   delayMin: 1,     // Minimum delay in seconds
-  delayMax: 20,    // Maximum delay in seconds
+  delayMax: 10,    // Maximum delay in seconds
 };
 
 // Create proxy agent if proxy URL provided
