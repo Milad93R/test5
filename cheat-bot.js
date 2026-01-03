@@ -7,7 +7,7 @@ const USER_AGENTS = {
   // linux: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36',
   android: 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Mobile Safari/537.36',
   iphone: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
-  ipad: 'Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+  // ipad: 'Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
   samsung: 'Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Mobile Safari/537.36',
   // edge: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 Edg/142.0.0.0',
   // firefox: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0',
@@ -33,15 +33,15 @@ function resolveUserAgent(ua) {
 const SCORE_STEP = 500; // Each item gives 500 points
 
 const CONFIG = {
-  token: process.argv[2] || '531044|dcDVMJQaz23Q707h5UKYE8vQYzZxiFuBCSMROo8S7d05bcee',
+  token: process.argv[2] || '545029|7AaGWjjzE815naLIwKMazTIggTFTohUTr2KAIvWWc51ed48c',
   userAgent: resolveUserAgent(process.argv[3] || 'random'),
   targetScore: 300000000,     // Stop when total score reaches this (must be multiple of SCORE_STEP)
   delayMin: 3,                  // Minimum delay between runs (seconds)
   delayMax: 5,                  // Maximum delay between runs (seconds)
-  rateMin: 800,                 // Minimum score rate (points per second)
-  rateMax: 1000,                 // Maximum score rate (points per second)
-  durationMin: 50,              // Min game duration (seconds)
-  durationMax: 200,             // Max game duration (seconds)
+  rateMin: 700,     // Minimum score rate (points per second)
+  rateMax: 750,                // Maximum score rate (points per second)
+  durationMin: 5300,             // Min game duration (seconds)
+  durationMax: 11500,             // Max game duration (seconds)
   headless: true,               // Set true to run without browser window
 };
 
@@ -105,7 +105,7 @@ const exploitScript = (score, token, gameStartTime) => `
 
   // Calculate actual elapsed time since game started
   const duration = (Date.now() - ${gameStartTime}) / 1000;
-  const cat = Math.floor(duration * 0.97);
+  const cat = Math.floor(duration);
 
   // Use SAME nonce for both Score and Cat (server validates this)
   const nonce = Date.now().toString();
