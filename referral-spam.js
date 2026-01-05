@@ -15,7 +15,7 @@ const CONFIG = {
   count: parseInt(process.argv[3]) || 5257,
   proxyUrl: process.argv[4] || null,
   delayMin: 1,     // Minimum delay in seconds
-  delayMax: 10,    // Maximum delay in seconds
+  delayMax: 1,    // Maximum delay in seconds
 };
 
 // Create proxy agent if proxy URL provided
